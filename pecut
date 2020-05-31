@@ -59,6 +59,9 @@ class Prompt
   end
 
   def identify_arrow(first_char)
+    return :right if first_char == "\f"
+    return :left if first_char == "\b"
+
     return first_char unless first_char == "\e"
 
     second_char = @console.getch
