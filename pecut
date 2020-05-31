@@ -91,7 +91,7 @@ class Selector
   end
 
   def selection
-    @selection_words[@selection_index.value]
+    @selection_words[@selection_index.value].strip
   end
 
   def move_right
