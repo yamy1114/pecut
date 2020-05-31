@@ -1,0 +1,138 @@
+#!/usr/bin/env ruby
+
+require 'io/console'
+require 'colorize'
+
+unless File.pipe?(STDIN) || File.select([STDIN], [], [], 0) != nil
+  $stderr.puts 'pecut raise error! stdin is not given!'
+  exit
+end
+
+class Prompt
+  def initialize
+    @console = IO.console
+    @selector = Selector.new($stdin.gets.chop)
+    @print_size = 0
+    refresh
+  end
+
+  def run
+    loop do
+      char = identify_arrow(@console.getch)
+      case char
+      when :right # right arrow
+        @selector.move_right
+        refresh
+      when :left # left arrow
+        @selector.move_left
+        refresh
+      when "\u0003" # Ctrl+c
+        escape
+      when "\r" # Enter
+        confirm
+      end
+    end
+  end
+
+  private
+
+  def escape
+    exit
+  end
+
+  def confirm
+    back_cursor
+    print ' ' * (@console.winsize[1]) + "\r"
+    puts @selector.selection
+    exit
+  end
+
+  def refresh
+    back_cursor
+    output = @selector.print_line_highlightly
+    @print_size = output.size
+    @console.print output
+  end
+
+  def back_cursor
+    @console.print "\b" * @print_size
+  end
+
+  def identify_arrow(first_char)
+    return first_char unless first_char == "\e"
+
+    second_char = @console.getch
+    return second_char unless second_char == '['
+
+    third_char = @console.getch
+    case third_char
+    when 'C'
+      return :right
+    when 'D'
+      return :left
+    end
+    return third_char
+  end
+end
+
+class Selector
+  DELIMITER = ' '.freeze
+
+  def initialize(line)
+    @selection_words = SelectionWords.new(line)
+    @selection_index = SelectionIndex.new(@selection_words.size)
+  end
+
+  def print_line_highlightly
+    @selection_words.pretty_print(@selection_index.value)
+  end
+
+  def selection
+    @selection_words[@selection_index.value]
+  end
+
+  def move_right
+    @selection_index.increment!
+  end
+
+  def move_left
+    @selection_index.decrement!
+  end
+end
+
+class SelectionWords < Array
+  DELIMITER = ' '.freeze
+  HIGHLIGHT_COLOR = :blue.freeze
+
+  def initialize(line)
+    super(line.scan(/#{DELIMITER}*[^#{DELIMITER}]+#{DELIMITER}*/).to_a)
+  end
+
+  def pretty_print(index)
+    result = ''
+    self.each_with_index do |word, i|
+      word = word.colorize(HIGHLIGHT_COLOR) if i == index
+      result += word
+    end
+    result
+  end
+end
+
+class SelectionIndex
+  attr_accessor :value
+
+  def initialize(size)
+    @value = 0
+    @size = size
+  end
+
+  def increment!
+    @value = (@value + 1) % @size
+  end
+
+  def decrement!
+    @value = (@value - 1) % @size
+  end
+end
+
+Prompt.new.run
